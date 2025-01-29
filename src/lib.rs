@@ -1,7 +1,33 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[cfg(feature = "random")]
 use rand::Rng;
+
+use std::hash::{Hasher, BuildHasher};
+
+struct IntHasher(u64);
+
+impl Hasher for IntHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, _bytes: &[u8]) {
+        panic!("invalid use")
+    }
+
+    fn write_usize(&mut self, n: usize) {
+        self.0 = n as u64
+    }
+}
+
+impl BuildHasher for IntHasher{
+    type Hasher = IntHasher;
+
+    fn build_hasher(&self) -> Self::Hasher {
+        IntHasher(0)
+    }
+}
 
 pub fn reverse<T>(data: &mut [T]) {
     data.reverse();
@@ -13,7 +39,7 @@ pub fn put_back<T>(data: &mut [T], amount: usize) {
 
 pub fn riffle<T>(data: &mut [T]) {
     #[inline]
-    fn get_or_return(lookup: &BTreeMap<usize, usize>, index: usize) -> usize {
+    fn get_or_return(lookup: &HashMap<usize, usize, IntHasher>, index: usize) -> usize {
         *(lookup.get(&index).unwrap_or(&index))
     }
 
@@ -21,7 +47,8 @@ pub fn riffle<T>(data: &mut [T]) {
 
     let mut i = 0;
     let mut j = 0;
-    let mut lookup = BTreeMap::<usize, usize>::new();
+    let mut lookup = HashMap::<usize, usize, IntHasher>::with_hasher(IntHasher(0));
+
     while i < data.len() {
         let found = get_or_return(&lookup, j);
         if found >= data.len() {
@@ -40,6 +67,18 @@ pub fn riffle<T>(data: &mut [T]) {
         i += 2;
         j += 1;
     }
+}
+
+pub fn remove_middle<T>(data: &mut [T]) {
+    let quarter_length = data.len() / 4;
+    let remainder = data.len() - (quarter_length * 4);
+
+    let (left, right) = data.split_at_mut(quarter_length*2 + remainder);
+    let (_left_left, left_right) = left.split_at_mut(quarter_length + remainder);
+    let (right_left, right_right) = right.split_at_mut(quarter_length);
+
+    left_right.swap_with_slice(right_left);
+    right_right.swap_with_slice(left_right);
 }
 
 #[cfg(feature = "random")]
@@ -76,6 +115,13 @@ fn riffle_test_odd() {
     let mut r = Vec::from_iter(1..=9);
     riffle(&mut r);
     assert_eq!(r, vec![1, 6, 2, 7, 3, 5, 4, 9, 8]);
+}
+
+#[test]
+fn remove_middle_test() {
+    let mut r = Vec::from_iter(1..=9);
+    remove_middle(&mut r);
+    assert_eq!(r, vec![1, 2, 3, 8, 9, 4, 5, 6, 7]);
 }
 
 #[test]
